@@ -81,7 +81,7 @@ vault write auth/kubernetes/config \
 ```
 
 - Create a named role (demo)
-```
+``` bash
 vault write auth/kubernetes/role/demo \
     bound_service_account_names=vault-auth \
     bound_service_account_namespaces=default \
@@ -91,7 +91,7 @@ vault write auth/kubernetes/role/demo \
 
 __Step 4__ - Verification - Get a Vault Token
 
-CLi - get a vault token
+- CLi - get a vault token
 ``` bash
 vault write auth/kubernetes/login role=demo jwt=${service_jwt}
 ```
@@ -114,7 +114,7 @@ token_meta_service_account_uid            e879db7b-e0db-11e8-b746-0800275f82b1
 token_meta_role
 ```
 
-API
+- API
 ``` bash
 curl \
     --request POST \
@@ -166,7 +166,7 @@ __Step 5__ - Verify access from within a Kubernetes PoD
 kubectl --kubeconfig kubeconfig run vault-demo --rm -i --tty --serviceaccount=vault-auth --image alpine
 ```
 
-- _Now from inside the pod_
+- _Now to verify from inside a kubernetes container within a pod_
 ``` bash
 # Update the image & install prerequisites
 apk update
