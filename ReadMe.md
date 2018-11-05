@@ -6,6 +6,8 @@ __Step 0__ - Install Vault with a Consul Backend _[Installation out of scope of 
 
 __Step 1__ - Install Kubernetes _[Installation out of scope of this example]_
 
+- Simply follow the instructions below to complete the prerequisites:
+
 ``` bash
 git clone git@github.com:allthingsclowd/vault_kubernetes_integration.git
 cd vault_kubernetes_integration
