@@ -1,3 +1,5 @@
 .vagrant
 .vault-token
 kubeconfig
+k8sca.crt
+testfile

@@ -1,4 +1,4 @@
-# Vault K8S Example Integration
+# HashiCorp Vault integration with Kubernetes
 
 I used the following [Vagrant file](https://medium.com/@lizrice/kubernetes-in-vagrant-with-kubeadm-21979ded6c63) as a starting point for the kubernetes installation.
 
@@ -7,25 +7,12 @@ __Step 0__ - Install Vault with a Consul Backend _[Installation out of scope of 
 __Step 1__ - Install Kubernetes _[Installation out of scope of this example]_
 
 ``` bash
-git clone <> .
+git clone git@github.com:allthingsclowd/vault_kubernetes_integration.git
+cd vault_kubernetes_integration
 vagrant up
 ```
 
-- Remove taints as using the master to host pods for demo purposes
-``` bash
-# Allow pods to run on the master node
-kubectl --kubeconfig kubeconfig taint nodes --all node-role.kubernetes.io/master-
-```
-
-__Step 2__ - Configure an overlay network for kubernetes
-
-- Now install the overlay network
-``` bash
-# Install a pod network
-kubectl --kubeconfig kubeconfig apply -f https://cloud.weave.works/k8s/net?k8s-version=$(kubectl --kubeconfig kubeconfig version | base64 | tr -d '\n')
-```
-
-__Step 3__ - Confige a Kubernetes Service Account
+__Step 2__ - Confige a Kubernetes Service Account
 
 - Install Vault service account on Kubernetes
 ``` bash
@@ -53,7 +40,7 @@ EOF
 
 - Locate the Service JWT token for this account. First grab the secret token
 ``` bash
-service_secret=`kubectl  --kubeconfig kubeconfig get serviceaccount vault-auth -o json | jq -Mr '.secrets[].name'`
+service_secret=`kubectl --kubeconfig kubeconfig get serviceaccount vault-auth -o json | jq -Mr '.secrets[].name'`
 ```
 
 - Then use the secret to get the Service JWT
@@ -66,7 +53,7 @@ service_jwt=`kubectl --kubeconfig kubeconfig get secrets ${service_secret} -o js
 kubectl --kubeconfig kubeconfig get secrets ${service_secret} -o json | jq -Mr '.data["ca.crt"]' | base64 -D > k8sca.crt
 ```
 
-__Step 4__ - Configure Vault
+__Step 3__ - Configure Vault
 
 - Enable the kubernetes auth method
 ``` bash
@@ -95,7 +82,7 @@ vault write auth/kubernetes/role/demo \
     ttl=1h
 ```
 
-__Step 5__ - Verification - Get a Vault Token
+__Step 4__ - Verification - Get a Vault Token
 
 CLi - get a vault token
 ``` bash
@@ -165,7 +152,7 @@ token_meta_service_account_secret_name    vault-auth-token-95dcm
 token_meta_service_account_uid            e879db7b-e0db-11e8-b746-0800275f82b1
 ```
 
-__Step 6__ - Verify access from within a Kubernetes PoD
+__Step 5__ - Verify access from within a Kubernetes PoD
 
 - Start a pod
 ``` bash
@@ -173,20 +160,18 @@ kubectl --kubeconfig kubeconfig run vault-demo --rm -i --tty --serviceaccount=va
 ```
 
 - _Now from inside the pod_
-```
+``` bash
+# Update the image & install prerequisites
 apk update
 apk add curl jq
 
+# Get the container token
 KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
 
+# Authenticate against Vault backend and get a Vault token
 VAULT_K8S_TOKEN=$(curl --request POST --data '{"jwt": "'"$KUBE_TOKEN"'", "role": "demo"}' http://192.168.2.11:8200/v1/auth/kubernetes/login | jq -r .auth.client_token)
 
-curl \
-    --header "X-Vault-Token: ${VAULT_K8S_TOKEN}" \
-    --request LIST \
-    http://192.168.2.11:8200/v1/auth/token/roles
-
-
+# Login to Vault with the new token
 curl \
     --header "X-Vault-Token: ${VAULT_K8S_TOKEN}" \
     http://192.168.2.11:8200/v1/auth/token/lookup-self | jq .
