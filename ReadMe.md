@@ -1,6 +1,6 @@
 # HashiCorp Vault integration with Kubernetes
 
-I used the following [Vagrant file](https://medium.com/@lizrice/kubernetes-in-vagrant-with-kubeadm-21979ded6c63) as a starting point for the kubernetes installation.
+This repository provides a self-contained Vagrantfile that can be used to walk-through the steps required to integrate Vault and Kubernetes. The Kubernetes native apis are used to facilitate bootstrapping containers in Pods with HashiCorp Vault Secrets.
 
 __Step 0__ - Install Vault with a Consul Backend _[Installation out of scope of this example]_
 
