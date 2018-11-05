@@ -2,6 +2,11 @@
 
 This repository provides a self-contained Vagrantfile that can be used to walk-through the steps required to integrate Vault and Kubernetes. The Kubernetes native apis are used to facilitate bootstrapping containers in Pods with HashiCorp Vault Secrets.
 
+__Prerequisites__
+ - [Vagrant](https://www.vagrantup.com/docs/installation/)
+ - [Virtualbox](https://www.virtualbox.org/wiki/Downloads)
+ - [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+
 __Step 0__ - Install Vault with a Consul Backend _[Installation out of scope of this example]_
 
 __Step 1__ - Install Kubernetes _[Installation out of scope of this example]_
