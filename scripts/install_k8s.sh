@@ -21,8 +21,16 @@ echo This VM has IP address ${IPADDR}
 NODENAME=$(hostname -s)
 kubeadm init --apiserver-cert-extra-sans=${IPADDR}  --node-name ${NODENAME}
 # Set up admin creds for the vagrant user
-echo Copying credentials to /home/vagrant... and /vagrant/ (so I can use it without logging into server)
+echo "Copying credentials to /home/vagrant"
+if [ -f /vagrant/kubeconfig ]; then
+    rm -rf /vagrant/kubeconfig
+fi
 sudo --user=vagrant mkdir -p /home/vagrant/.kube
 cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
-cp -i /etc/kubernetes/admin.conf /vagrant/kubeconfig
 chown $(id -u vagrant):$(id -g vagrant) /home/vagrant/.kube/config
+# Configure kube config file for use from the host
+cat /etc/kubernetes/admin.conf | sed  "s/server:\ .*/server: https:\/\/${IPADDR}:6443/" > /vagrant/kubeconfig
+# Allow pods to run on the master node
+kubectl --kubeconfig /home/vagrant/.kube/config taint nodes --all node-role.kubernetes.io/master-
+# Deploy an overlay network
+kubectl --kubeconfig /home/vagrant/.kube/config apply -f https://cloud.weave.works/k8s/net?k8s-version=$(kubectl --kubeconfig /home/vagrant/.kube/config version | base64 | tr -d '\n')
