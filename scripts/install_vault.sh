@@ -1,4 +1,50 @@
 #!/usr/bin/env bash
+
+create_provisioner_policy () {
+  # provisioner policy hcl definition file
+  tee provisioner_policy.hcl <<EOF
+  # Manage auth backends broadly across Vault
+  path "auth/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+  }
+
+  # List, create, update, and delete auth backends
+  path "sys/auth/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "sudo"]
+  }
+
+  # List existing policies
+  path "sys/policy"
+  {
+    capabilities = ["read"]
+  }
+
+  # Create and manage ACL policies
+  path "sys/policy/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+
+  # List, create, update, and delete key/value secrets
+  path "secret/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+
+  # List, create, update, and delete key/value secrets
+  path "kv/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+EOF
+  VAULT_TOKEN=`cat /usr/local/bootstrap/.vault-token`
+  # create provisioner policy
+  sudo VAULT_TOKEN=${VAULT_TOKEN} VAULT_ADDR="http://${IP}:8200" vault policy write provisioner provisioner_policy.hcl
+
+}
+
 create_service () {
   if [ ! -f /etc/systemd/system/${1}.service ]; then
     
@@ -110,5 +156,8 @@ if [[ "${HOSTNAME}" =~ "vault" ]] || [ "${TRAVIS}" == "true" ]; then
   #copy token to known location
   sudo find / -name '.vault-token' -exec cp {} /usr/local/bootstrap/.vault-token \; -quit
   sudo chmod ugo+r /usr/local/bootstrap/.vault-token
+
+  # create provisioner policy
+  create_provisioner_policy
 
 fi
