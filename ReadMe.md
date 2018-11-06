@@ -19,7 +19,7 @@ cd vault_kubernetes_integration
 vagrant up
 ```
 
-__Step 2__ - Confige a Kubernetes Service Account
+__Step 2__ - Configure a Kubernetes Service Account
 
 - Install Vault service account on Kubernetes
 ``` bash
@@ -79,13 +79,59 @@ vault write auth/kubernetes/config \
     kubernetes_ca_cert=@k8sca.crt
 
 ```
+- Create a provisioner policy (this was created during the Vault installation process - see install_vault.sh)
+``` bash
+create_provisioner_policy () {
+  # provisioner policy hcl definition file
+  tee provisioner_policy.hcl <<EOF
+  # Manage auth backends broadly across Vault
+  path "auth/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+  }
 
+  # List, create, update, and delete auth backends
+  path "sys/auth/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "sudo"]
+  }
+
+  # List existing policies
+  path "sys/policy"
+  {
+    capabilities = ["read"]
+  }
+
+  # Create and manage ACL policies
+  path "sys/policy/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+
+  # List, create, update, and delete key/value secrets
+  path "secret/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+
+  # List, create, update, and delete key/value secrets
+  path "kv/*"
+  {
+    capabilities = ["create", "read", "update", "delete", "list"]
+  }
+EOF
+  VAULT_TOKEN=`cat /usr/local/bootstrap/.vault-token`
+  # create provisioner policy
+  sudo VAULT_TOKEN=${VAULT_TOKEN} VAULT_ADDR="http://${IP}:8200" vault policy write provisioner provisioner_policy.hcl
+
+}
+```
 - Create a named role (demo)
 ``` bash
 vault write auth/kubernetes/role/demo \
     bound_service_account_names=vault-auth \
     bound_service_account_namespaces=default \
-    policies=default \
+    policies=provisioner \
     ttl=1h
 ```
 
@@ -159,7 +205,7 @@ token_meta_service_account_secret_name    vault-auth-token-95dcm
 token_meta_service_account_uid            e879db7b-e0db-11e8-b746-0800275f82b1
 ```
 
-__Step 5__ - Verify access from within a Kubernetes PoD
+__Step 5__ - Manually verify access from within a Kubernetes PoD
 
 - Start a pod
 ``` bash
@@ -222,4 +268,121 @@ Successful Output
   "warnings": null,
   "auth": null
 }
+```
+
+__Step 6__ - [Example container bootstrapped go application](https://github.com/allthingsclowd/VaultServiceIDFactory)
+
+- Review the docker file
+``` dockerfile
+FROM alpine
+RUN apk add --update \
+    curl bash jq \
+    && rm -rf /var/cache/apk/*
+ADD /VaultServiceIDFactory /VaultServiceIDFactory
+ADD scripts/docker_init.sh /docker_init.sh
+CMD [/docker_init.sh]
+```
+
+- Review the container init script
+``` bash
+#!/bin/bash
+
+# Start the first process
+./VaultServiceIDFactory -vault="http://192.168.2.11:8200"&
+status=$?
+if [ ${status} -ne 0 ]; then
+  echo "Failed to start VaultServiceIDFactory: ${status}"
+  exit ${status}
+fi
+
+if [ -f /usr/local/bootstrap/.provisioner-token ]; then
+  echo "Running Docker locally with access to vagrant instance filesystem"
+  VAULT_TOKEN=`cat /usr/local/bootstrap/.provisioner-token`
+else
+  echo "Looking for secret keys on Kubernetes"
+  # Get the container token
+  KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+  # Authenticate against Vault backend and get a Vault token
+  VAULT_TOKEN=$(curl --request POST \
+                          --data '{"jwt": "'"$KUBE_TOKEN"'", "role": "demo"}' \
+                          http://192.168.2.11:8200/v1/auth/kubernetes/login | jq -r .auth.client_token)
+fi
+
+WRAPPED_PROVISIONER_TOKEN=$(curl --request POST \
+                                  --data '{
+                                            "policies": [
+                                              "provisioner"
+                                              ],
+                                            "metadata": {
+                                              "user": "Grahams Demo"
+                                              },
+                                            "ttl": "1h",
+                                            "renewable": true
+                                          }' \
+                                  --header "X-Vault-Token: ${VAULT_TOKEN}" \
+                                  --header "X-Vault-Wrap-TTL: 60" \
+                              http://192.168.2.11:8200/v1/auth/token/create | jq -r .wrap_info.token)
+
+
+curl -s --header "Content-Type: application/json" \
+        --request POST \
+        --data "{\"token\":\"${WRAPPED_PROVISIONER_TOKEN}\"}" \
+        http://127.0.0.1:8314/initialiseme
+
+curl -s http://127.0.0.1:8314/health 
+
+# Naive check runs checks once a minute to see if either of the processes exited.
+# This illustrates part of the heavy lifting you need to do if you want to run
+# more than one service in a container. The container exits with an error
+# if it detects that either of the processes has exited.
+# Otherwise it loops forever, waking up every 60 seconds
+
+while sleep 60; do
+  ps aux |grep VaultServiceIDFactory |grep -q -v grep
+  PROCESS_1_STATUS=$?
+  # If the greps above find anything, they exit with 0 status
+  # If they are not both 0, then something is wrong
+  if [ ${PROCESS_1_STATUS} -ne 0 ]; then
+    echo "VaultServiceIDFactory has already exited."
+    exit 1
+  fi
+done
+```
+- Test the aplication
+``` bash
+kubectl --kubeconfig kubeconfig run vault-demo --rm -i --tty --serviceaccount=vault-auth --image allthingscloud/vaultsecretidfactory
+```
+
+Successful Output
+``` bash
+kubectl run --generator=deployment/apps.v1beta1 is DEPRECATED and will be removed in a future version. Use kubectl create instead.
+If you don\'t see a command prompt, try pressing enter.
+100  1532  100   651  100   881    612    829  0:00:01  0:00:01 --:--:--  1443
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   844  100   337  100   507  12481  18777 --:--:-- --:--:-- --:--:-- 32461
+
+Debug Vars Start
+
+VAULT_ADDR:> http://192.168.2.11:8200
+
+URL:> /v1/sys/wrapping/unwrap
+
+TOKEN:> s.4hGWun5lMWMZQ5spT6TcJu44
+
+DATA:> map[]
+
+VERB:> POST
+
+Debug Vars End
+response Status: 200 OK
+response Headers: map[Cache-Control:[no-store] Content-Type:[application/json] Date:[Tue, 06 Nov 2018 21:34:18 GMT] Content-Length:[449]]
+
+
+response result:  map[data:<nil> wrap_info:<nil> warnings:<nil> auth:map[policies:[default provisioner] metadata:<nil> lease_duration:3600 renewable:true token_type:serviceclient_token:s.3kOHQuFE9S235xnVzY1Cj8c8 accessor:5X6BOfpnOldute8MRKMuS7Sp token_policies:[default provisioner] entity_id:03d315eb-e259-3f49-6034-27faaf820d3b] request_id:c1895108-90ec-ff82-6ddb-7a3b503b2d04 lease_id: renewable:false lease_duration:0]
+2018/11/06 21:34:17 s.3kOHQuFE9S235xnVzY1Cj8c8
+Wrapped Token Received: s.4hGWun5lMWMZQ5spT6TcJu44
+UnWrapped Vault Provisioner Role Token Received: s.3kOHQuFE9S235xnVzY1Cj8c8
+2018/11/06 21:34:17 INITIALISED
+INITIALISED
 ```
