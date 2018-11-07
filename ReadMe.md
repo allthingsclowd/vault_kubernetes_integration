@@ -386,3 +386,9 @@ UnWrapped Vault Provisioner Role Token Received: s.3kOHQuFE9S235xnVzY1Cj8c8
 2018/11/06 21:34:17 INITIALISED
 INITIALISED
 ```
+
+- Create K8S Deployment
+``` bash
+# Create the Factory Service
+kubectl --kubeconfig kubeconfig apply -f conf/k8s/vaultsecretidfactory.yaml
+```

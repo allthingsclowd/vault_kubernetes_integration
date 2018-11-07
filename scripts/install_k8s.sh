@@ -34,3 +34,16 @@ cat /etc/kubernetes/admin.conf | sed  "s/server:\ .*/server: https:\/\/${IPADDR}
 kubectl --kubeconfig /home/vagrant/.kube/config taint nodes --all node-role.kubernetes.io/master-
 # Deploy an overlay network
 kubectl --kubeconfig /home/vagrant/.kube/config apply -f https://cloud.weave.works/k8s/net?k8s-version=$(kubectl --kubeconfig /home/vagrant/.kube/config version | base64 | tr -d '\n')
+# Deploy Ambassador for use as the Ingress Controller
+#kubectl --kubeconfig /home/vagrant/.kube/config apply -f /vagrant/conf/k8s/ambassador-rbac.yaml
+# Create the Ambassador Service
+#kubectl --kubeconfig /home/vagrant/.kube/config apply -f /vagrant/conf/k8s/ambassador-service.yaml
+# remove later
+kubectl --kubeconfig /home/vagrant/.kube/config apply -f /vagrant/conf/k8s/vaultsecretidfactory.yaml
+
+# trial nginx ingress controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml
+kubectl apply -f /vagrant/conf/k8s/nginx-ingress.yaml
+
+
+
