@@ -43,7 +43,7 @@ kubectl --kubeconfig /home/vagrant/.kube/config apply -f /vagrant/conf/k8s/vault
 
 # trial nginx ingress controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml
-kubectl apply -f /vagrant/conf/k8s/nginx-ingress.yaml
+kubectl apply -f /home/vagrant/conf/k8s/nginx-ingress.yaml
 
 
 
