@@ -19,10 +19,11 @@ cd vault_kubernetes_integration
 vagrant up
 ```
 
-__Step 2__ - Configure a Kubernetes Service Account
+__Step 2__ - Configure a Kubernetes Service Account on the k8s01 node
 
 - Install Vault service account on Kubernetes
 ``` bash
+vagrant ssh k8s01
 kubectl --kubeconfig kubeconfig create serviceaccount vault-auth
 ```
 
@@ -60,10 +61,11 @@ service_jwt=`kubectl --kubeconfig kubeconfig get secrets ${service_secret} -o js
 kubectl --kubeconfig kubeconfig get secrets ${service_secret} -o json | jq -Mr '.data["ca.crt"]' | base64 -D > k8sca.crt
 ```
 
-__Step 3__ - Configure Vault
+__Step 3__ - Configure Vault on the vault01 node
 
 - Enable the kubernetes auth method
 ``` bash
+vagrant ssh vault01
 export VAULT_TOKEN=$(cat .vault-token)
 export VAULT_ADDR='http://192.168.2.11:8200'
 vault auth enable kubernetes
@@ -385,4 +387,10 @@ Wrapped Token Received: s.4hGWun5lMWMZQ5spT6TcJu44
 UnWrapped Vault Provisioner Role Token Received: s.3kOHQuFE9S235xnVzY1Cj8c8
 2018/11/06 21:34:17 INITIALISED
 INITIALISED
+```
+
+- Create K8S Deployment
+``` bash
+# Create the Factory Service
+kubectl --kubeconfig kubeconfig apply -f conf/k8s/vaultsecretidfactory.yaml
 ```
